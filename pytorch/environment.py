@@ -43,7 +43,7 @@ def calculate_iou(boxA, boxB):
 
 
 class Env(object):
-    def __init__(self, dir):
+    def __init__(self):
         self.root_dir = '../vot2016/ball1/'
         self.num_train = 50 # number of frames used for training
         self.imglist, self.gt_bboxes= self.load_data()
@@ -51,6 +51,7 @@ class Env(object):
         self.cur_img = None
         self.state = np.zeros(4)
         self.gt_bbox = np.zeros(4)
+        self.step_count = 0
 
     def load_data(self):
         '''
@@ -89,7 +90,7 @@ class Env(object):
         self.cur_flame = np.random.randint(self.num_train)
         self.cur_img = self.imglist[self.cur_flame]
         self.gt_bbox = self.gt_bboxes
-
+        self.step_count = 0
         # gaussian randomly initialize the starting location.
         std_x = 0.1 * self.gt_bbox[2]
         std_y = 0.1 * self.gt_bbox[3]
@@ -108,8 +109,10 @@ class Env(object):
             reward
         '''
         self.state += warp[action]
+        self.step_count += 1
+
         ns = self.cropping()
-        if action==10:
+        if action == 10 or self.step_count == 100:
             is_t = True
         else:
             is_t = False

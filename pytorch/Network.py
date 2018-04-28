@@ -10,7 +10,7 @@ class Tracknet(nn.Module):
     '''
     def __init__(self):
         super().__init__()
-        pretrained_model = torchvision.models.resnet18()
+        pretrained_model = torchvision.models.vgg11_bn()
         self.features = nn.Sequential(
             *list(pretrained_model.features.children())[:-3]
         )
