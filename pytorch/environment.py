@@ -50,7 +50,6 @@ class Env(object):
         self.cur_idx = 0
         self.cur_img = None
         self.state = np.zeros(4)
-        self.gt_bbox = np.zeros(4)
         self.step_count = 0
 
     def load_data(self):
@@ -73,30 +72,29 @@ class Env(object):
         x_max = np.max(x, 1)
         y_min = np.min(y, 1)
         y_max = np.max(y, 1)
-        gt_bbox = [x_min, y_min, x_max, y_max]
+        gt_bbox = np.column_stack((x_min, y_min, x_max, y_max))
         gt_bbox = gt_bbox[:self.num_train, :]
         return imglsit, gt_bbox
 
     def cropping(self, state):
-        h, w, _ = self.cur_img.shape
-        x = np.max(0, state[0])
-        y = np.max(0, state[1])
-        xx = np.min(state[2], h-1)
-        yy = np.min(state[3], w-1)
+        w, h = self.cur_img.size
+        x = max(0, state[0])
+        y = max(0, state[1])
+        xx = min(state[2], h-1)
+        yy = min(state[3], w-1)
         return self.cur_img.crop([x, y, xx, yy])
 
-
     def reset(self):
-        self.cur_flame = np.random.randint(self.num_train)
-        self.cur_img = self.imglist[self.cur_flame]
-        self.gt_bbox = self.gt_bboxes
+        self.cur_idx = np.random.randint(self.num_train)    #frame idx
+        self.cur_img = self.imglist[self.cur_idx]           #
+        gt_bbox = self.gt_bboxes[self.cur_idx]
         self.step_count = 0
         # gaussian randomly initialize the starting location.
-        std_x = 0.1 * self.gt_bbox[2]
-        std_y = 0.1 * self.gt_bbox[3]
+        std_x = 0.1 * gt_bbox[2]
+        std_y = 0.1 * gt_bbox[3]
         dx = np.random.normal(0, std_x)
         dy = np.random.normal(0, std_y)
-        self.state = self.gt_bbox + [dx, dy, 0, 0]
+        self.state = gt_bbox + np.array([dx, dy, 0, 0])
         return self.cropping(self.state)
 
     def step(self, action):
@@ -108,10 +106,10 @@ class Env(object):
             is_terminate,
             reward
         '''
+
         self.state += warp[action]
         self.step_count += 1
-
-        ns = self.cropping()
+        ns = self.cropping(self.state)
         if action == 10 or self.step_count == 100:
             is_t = True
         else:
@@ -119,7 +117,7 @@ class Env(object):
 
         reward = 0
         if is_t:
-            iou = calculate_iou(self.state, self.gt_bbox)
+            iou = calculate_iou(self.state, self.gt_bboxes[self.cur_idx])
             if iou > 0.7:
                 reward = 1
             else:

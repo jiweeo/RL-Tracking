@@ -10,17 +10,18 @@ class Tracknet(nn.Module):
     '''
     def __init__(self):
         super().__init__()
-        pretrained_model = torchvision.models.vgg11_bn()
+        pretrained_model = torchvision.models.vgg11()
         self.features = nn.Sequential(
             *list(pretrained_model.features.children())[:-3]
         )
         self.fc = nn.Sequential(
-            nn.Linear(3*3*512, 512),
+            nn.Linear(512*7*7, 512),
             nn.Tanh(),
             nn.Linear(512, 11)
         )
     def forward(self, x):
         x = self.features(x)
+        x = x.view(1, -1)
         x = self.fc(x)
         x = F.softmax(x)
         return x

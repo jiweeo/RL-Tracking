@@ -12,10 +12,10 @@ class Reinforce(object):
     def __init__(self):
         super().__init__()
         # net
-        self.agent = Tracknet()
+        self.agent = Tracknet().cuda()
 
         # load imagenet pre-trained weights
-        vgg11 = torchvision.models.vgg11_bn(pretrained=True)
+        vgg11 = torchvision.models.vgg11(pretrained=True)
         pretrained_dict = vgg11.state_dict()
         model_dict = self.agent.state_dict()
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
@@ -24,9 +24,10 @@ class Reinforce(object):
 
         # trainsform
         self.transform = transforms.Compose([
-            transforms.ToTensor(),
             transforms.Resize((114, 114)),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+
         ])
 
         self.optim = torch.optim.Adam(self.agent.parameters(), lr=1e-3)
@@ -37,16 +38,19 @@ class Reinforce(object):
 
         horizon = len(states)
 
-        # compute return G_t
+        # compute return G_t and loss
         g = np.zeros(horizon)
+        loss = 0
         for t in range(horizon-1, -1, -1):
             if t == horizon-1:
                 g[t] = rewards[t]
             else:
                 g[t] = gamma * g[t+1] + rewards[t]
 
+            loss += torch.log(q_values[t]) * g[t]
+
+        loss = loss/horizon
         self.optim.zero_grad()
-        loss = -(torch.log(q_values) * g).sum() / horizon
         loss.backward()
         self.optim.step()
 
@@ -62,8 +66,10 @@ class Reinforce(object):
         while True:
             states.append(state)
             state_var = Variable(self.transform(state)).cuda()
+            state_var = state_var.unsqueeze(0)
             q_value = self.agent(state_var)
-            q_value_numpy = q_value.cpu().numpy()
+            q_value = q_value.view(-1)
+            q_value_numpy = q_value.data.cpu().numpy()
             if is_training:
                 action = np.random.choice(11, 1, p=q_value_numpy)[0]
             else:
@@ -92,7 +98,7 @@ def main(args):
     R = Reinforce()
     env = Env()
     for epoch in range(1, args.max_epochs+1):
-        R.train(env, args.gamma, logging=True)
+        R.train(env, epoch, args.gamma, logging=True)
 
 
 if __name__ == '__main__':
