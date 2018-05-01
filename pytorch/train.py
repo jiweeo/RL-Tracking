@@ -7,6 +7,9 @@ from Network import Tracknet
 from torchvision import transforms
 from torch.autograd import Variable
 import torchvision
+import os
+
+os.environ['CUDA_VISIBLE_DEVICES']='3'
 
 class Reinforce(object):
     def __init__(self):
@@ -30,10 +33,10 @@ class Reinforce(object):
 
         ])
 
-        self.optim = torch.optim.Adam(self.agent.parameters(), lr=1e-3)
+        self.optim = torch.optim.Adam(self.agent.fc.parameters(), lr=1e-4)
         self.agent.train()
 
-    def train(self, env, epoch, gamma=1.0, logging=False):
+    def train(self, env, epoch, gamma=0.99, logging=False):
         states, actions, rewards, q_values = self.generate_episode(env)
 
         horizon = len(states)
@@ -49,13 +52,13 @@ class Reinforce(object):
 
             loss += torch.log(q_values[t]) * g[t]
 
-        loss = loss/horizon
+        loss = -loss/horizon
         self.optim.zero_grad()
         loss.backward()
         self.optim.step()
 
         if logging:
-            print('E: %d \t loss: %.3f\t reward:%.3f' %(epoch, loss, sum(rewards)))
+            print('E: %d \t loss: %.3f\t reward:%.3f \thorizon: %d' %(epoch, loss, sum(rewards), horizon))
 
     def generate_episode(self, env, is_training=True):
         states = []

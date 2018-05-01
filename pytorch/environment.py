@@ -42,7 +42,9 @@ def calculate_iou(boxA, boxB):
     return iou
 
 
+
 class Env(object):
+
     def __init__(self):
         self.root_dir = '../vot2016/ball1/'
         self.num_train = 50 # number of frames used for training
@@ -51,6 +53,7 @@ class Env(object):
         self.cur_img = None
         self.state = np.zeros(4)
         self.step_count = 0
+
 
     def load_data(self):
         '''
@@ -76,13 +79,6 @@ class Env(object):
         gt_bbox = gt_bbox[:self.num_train, :]
         return imglsit, gt_bbox
 
-    def cropping(self, state):
-        w, h = self.cur_img.size
-        x = max(0, state[0])
-        y = max(0, state[1])
-        xx = min(state[2], h-1)
-        yy = min(state[3], w-1)
-        return self.cur_img.crop([x, y, xx, yy])
 
     def reset(self):
         self.cur_idx = np.random.randint(self.num_train)    #frame idx
@@ -90,12 +86,31 @@ class Env(object):
         gt_bbox = self.gt_bboxes[self.cur_idx]
         self.step_count = 0
         # gaussian randomly initialize the starting location.
-        std_x = 0.1 * gt_bbox[2]
-        std_y = 0.1 * gt_bbox[3]
-        dx = np.random.normal(0, std_x)
-        dy = np.random.normal(0, std_y)
-        self.state = gt_bbox + np.array([dx, dy, 0, 0])
-        return self.cropping(self.state)
+        h, w = self.cur_img.size
+        std = 0.01 * min(h, w)
+
+        while True:
+            # keep sample until a valid starting bbox
+            dx, dy, dxx, dyy = np.random.normal(0, std, size=4)
+            self.state = gt_bbox + np.array([dx, dy, dxx, dyy])
+            if self.is_valid(self.state):
+                break
+
+        return self.cur_img.crop(self.state)
+
+
+    def is_valid(self, bbox):
+        # check out of range error
+        if bbox[0]>=bbox[2] or bbox[1]>=bbox[3]:
+            return False
+        if min(bbox) < 0:
+            return False
+        if max([bbox[0], bbox[2]]) >= self.cur_img.size[0]:
+            return False
+        if max([bbox[1], bbox[3]]) >= self.cur_img.size[1]:
+            return False
+        return True
+
 
     def step(self, action):
 
@@ -107,14 +122,29 @@ class Env(object):
             reward
         '''
 
-        self.state += warp[action]
+        # calculate step size
+        h, w = self.cur_img.size
+        step_size = min(h, w) * 0.03
+
+        # compute new bbox
+        new_bbox = self.state + warp[action] * step_size
+
+        # check if the new bbox is valid
+        if not self.is_valid(new_bbox):
+            # return current bbox and Termination
+            return self.cur_img.crop(self.state), True, -1
+
+        # if valid
+        self.state = new_bbox
         self.step_count += 1
-        ns = self.cropping(self.state)
-        if action == 10 or self.step_count == 100:
+        ns = self.cur_img.crop(self.state)
+        if action == 10 or self.step_count == 300:
+            # if curruent action is termination or the episode is long enough
             is_t = True
         else:
             is_t = False
 
+        # computing reward
         reward = 0
         if is_t:
             iou = calculate_iou(self.state, self.gt_bboxes[self.cur_idx])
