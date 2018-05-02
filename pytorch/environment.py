@@ -123,12 +123,14 @@ class Env(object):
         '''
 
         # calculate step size
-        h, w = self.cur_img.size
+        # h, w = self.cur_img.size
         # step_size = min(h, w) * 0.03
-        step_size = 0.03
+        w = self.state[2]-self.state[0]
+        h = self.state[3]-self.state[1]
+        step_size = 0.03 * np.array([w,h,w,h])
 
         # compute new bbox
-        new_bbox = self.state + warp[action] * step_size * self.state
+        new_bbox = self.state + warp[action] * step_size
 
         # check if the new bbox is valid
         if not self.is_valid(new_bbox):
