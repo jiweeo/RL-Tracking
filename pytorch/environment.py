@@ -124,7 +124,7 @@ class Env(object):
 
         # calculate step size
         h, w = self.cur_img.size
-        step_size = min(h, w) * 0.03
+        step_size = min(h, w) * 0.01
 
         # compute new bbox
         new_bbox = self.state + warp[action] * step_size
@@ -132,7 +132,7 @@ class Env(object):
         # check if the new bbox is valid
         if not self.is_valid(new_bbox):
             # return current bbox and Termination
-            return self.cur_img.crop(self.state), True, -1
+            return self.cur_img.crop(self.state), True, -100
 
         # if valid
         self.state = new_bbox
@@ -145,13 +145,13 @@ class Env(object):
             is_t = False
 
         # computing reward
-        reward = 0
+        reward = -0.1
         if is_t:
             iou = calculate_iou(self.state, self.gt_bboxes[self.cur_idx])
             if iou > 0.7:
-                reward = 1
+                reward = 100
             else:
-                reward = -1
+                reward = -30
 
         return ns, is_t, reward
 

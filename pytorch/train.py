@@ -52,7 +52,7 @@ class Reinforce(object):
 
             loss += torch.log(q_values[t]) * g[t]
 
-        loss = -loss/horizon
+        loss = - loss/horizon
         self.optim.zero_grad()
         loss.backward()
         self.optim.step()
@@ -93,6 +93,7 @@ def parse_arguments():
     parser.add_argument('--max_epochs', type=int, default=5000)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--gamma', type=float, default=0.99)
+    parser.add_argument('--save_freq', type=int, default=10000)
     return parser.parse_args()
 
 
@@ -102,7 +103,6 @@ def main(args):
     env = Env()
     for epoch in range(1, args.max_epochs+1):
         R.train(env, epoch, args.gamma, logging=True)
-
 
 if __name__ == '__main__':
     main(sys.argv)
