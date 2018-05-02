@@ -47,7 +47,7 @@ class Env(object):
 
     def __init__(self):
         self.root_dir = '../vot2016/ball1/'
-        self.num_train = 50 # number of frames used for training
+        self.num_train = 50                     # number of frames used for training
         self.imglist, self.gt_bboxes= self.load_data()
         self.cur_idx = 0
         self.cur_img = None
@@ -123,8 +123,9 @@ class Env(object):
         '''
 
         # calculate step size
-        h, w = self.cur_img.size
-        step_size = min(h, w) * 0.01
+        w = self.state[2]-self.state[0]
+        h = self.state[3]-self.state[1]
+        step_size = 0.03 * np.array([w,h,w,h])
 
         # compute new bbox
         new_bbox = self.state + warp[action] * step_size
