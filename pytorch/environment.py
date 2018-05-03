@@ -45,15 +45,14 @@ def calculate_iou(boxA, boxB):
 
 class Env(object):
 
-    def __init__(self):
-        self.root_dir = '../vot2016/ball1/'
-        self.num_train = 50                     # number of frames used for training
+    def __init__(self, args):
+        self.root_dir = args.data
+        self.num_train = args.num_train                     # number of frames used for training
         self.imglist, self.gt_bboxes= self.load_data()
         self.cur_idx = 0
         self.cur_img = None
         self.state = np.zeros(4)
         self.step_count = 0
-
 
     def load_data(self):
         '''
@@ -62,13 +61,7 @@ class Env(object):
             gt_bbox nparray [n*4] (x,y,delta_x, delta_y)
         '''
 
-        imglsit = []
-        for index in range(1, self.num_train+1):
-            imgpath = self.root_dir+str(index).zfill(8)+'.jpg'
-            img = Image.open(imgpath)
-            imglsit.append(img)
-
-        gt_bbox = np.genfromtxt(self.root_dir+'groundtruth.txt', delimiter=',')
+        gt_bbox = np.genfromtxt(self.root_dir + 'groundtruth.txt', delimiter=',')
         x = gt_bbox[:, [0, 2, 4, 6]]
         y = gt_bbox[:, [1, 3, 5, 7]]
         x_min = np.min(x, 1)
@@ -76,7 +69,15 @@ class Env(object):
         y_min = np.min(y, 1)
         y_max = np.max(y, 1)
         gt_bbox = np.column_stack((x_min, y_min, x_max, y_max))
-        gt_bbox = gt_bbox[:self.num_train, :]
+
+        num_frame = len(gt_bbox)
+
+        imglsit = []
+        for index in range(1, num_frame+1):
+            imgpath = self.root_dir+str(index).zfill(8)+'.jpg'
+            img = Image.open(imgpath)
+            imglsit.append(img)
+
         return imglsit, gt_bbox
 
 
@@ -146,7 +147,7 @@ class Env(object):
             is_t = False
 
         # computing reward
-        reward = -0.1
+        reward = -1
         if is_t:
             iou = calculate_iou(self.state, self.gt_bboxes[self.cur_idx])
             if iou > 0.7:

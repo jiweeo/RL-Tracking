@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-import sys
 import argparse
 from environment import Env
 from Network import Tracknet
@@ -8,8 +7,15 @@ from torchvision import transforms
 from torch.autograd import Variable
 import torchvision
 import os
+import shutil
 
 os.environ['CUDA_VISIBLE_DEVICES']='3'
+
+
+def save_checkpoint(state, filename='checkpoint.pth.tar'):
+    torch.save(state, filename)
+    shutil.copyfile(filename, 'latest.pth.tar')
+
 
 class Reinforce(object):
     def __init__(self):
@@ -94,15 +100,41 @@ def parse_arguments():
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--save_freq', type=int, default=10000)
+    parser.add_argument('--data', type=str, default='../vot2016/ball1/')
+    parser.add_argument('--num_train', type=int, default=50, help='number of frames used for training in one video')
+    parser.add_argument('--resume', type=str, default='',  help='path to checkpoint (default: none)')
+    parser.add_argument('--load', type=str, default='', help='path to checkpoint(default: none)')
     return parser.parse_args()
 
 
-def main(args):
+def main():
     args = parse_arguments()
     R = Reinforce()
-    env = Env()
-    for epoch in range(1, args.max_epochs+1):
+    env = Env(args)
+
+    start_epoch = 1
+    if args.resume:
+        if os.path.isfile(args.resume):
+            print("=> loading checkpoint '{}'".format(args.resume))
+            checkpoint = torch.load(args.resume)
+            start_epoch= checkpoint['epoch']
+            R.agent.load_state_dict(checkpoint['state_dict'])
+            R.optim.load_state_dict(checkpoint['optimizer'])
+            print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(args.resume, checkpoint['epoch']))
+        else:
+            print("=> no checkpoint found at '{}'".format(args.resume))
+
+    for epoch in range(start_epoch, args.max_epochs+1):
         R.train(env, epoch, args.gamma, logging=True)
+        if epoch % args.save_freq == 0:
+            # save model
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'state_dict': R.agent.state_dict(),
+                'optimizer': R.optim.state_dict(),
+            }, filename='ckpt_%d.pth.tar' % epoch)
+
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()
