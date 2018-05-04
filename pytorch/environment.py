@@ -1,5 +1,6 @@
 import PIL.Image as Image
 import numpy as np
+from utils import calculate_iou, gen_gaussian_noise
 
 warp = np.array(
     [
@@ -16,31 +17,6 @@ warp = np.array(
         [0, 0, 0, 0]  # terminate
     ]
 )
-
-
-def calculate_iou(boxA, boxB):
-    # determine the (x, y)-coordinates of the intersection rectangle
-    xA = max(boxA[0], boxB[0])
-    yA = max(boxA[1], boxB[1])
-    xB = min(boxA[2], boxB[2])
-    yB = min(boxA[3], boxB[3])
-
-    # compute the area of intersection rectangle
-    interArea = (xB - xA + 1) * (yB - yA + 1)
-
-    # compute the area of both the prediction and ground-truth
-    # rectangles
-    boxAArea = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
-    boxBArea = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
-
-    # compute the intersection over union by taking the intersection
-    # area and dividing it by the sum of prediction + ground-truth
-    # areas - the interesection area
-    iou = interArea / float(boxAArea + boxBArea - interArea)
-
-    # return the intersection over union value
-    return iou
-
 
 
 class Env(object):
@@ -86,14 +62,10 @@ class Env(object):
         self.cur_img = self.imglist[self.cur_idx]           #
         gt_bbox = self.gt_bboxes[self.cur_idx]
         self.step_count = 0
-        # gaussian randomly initialize the starting location.
-        h, w = self.cur_img.size
-        std = 0.01 * min(h, w)
 
         while True:
             # keep sample until a valid starting bbox
-            dx, dy, dxx, dyy = np.random.normal(0, std, size=4)
-            self.state = gt_bbox + np.array([dx, dy, dxx, dyy])
+            self.state = gen_gaussian_noise(gt_bbox)
             if self.is_valid(self.state):
                 break
 
@@ -128,10 +100,9 @@ class Env(object):
         # calculate step size
         w = self.state[2]-self.state[0]
         h = self.state[3]-self.state[1]
-        step_size = 0.03 * np.array([w,h,w,h])
-
+        step_size = 1
         # compute new bbox
-        new_bbox = self.state + warp[action] * 1
+        new_bbox = self.state + warp[action] * step_size
 
         # check if the new bbox is valid
         if not self.is_valid(new_bbox):
