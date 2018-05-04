@@ -9,7 +9,7 @@ import torchvision
 import os
 import shutil
 
-os.environ['CUDA_VISIBLE_DEVICES']='3'
+os.environ['CUDA_VISIBLE_DEVICES']='1'
 
 
 def save_checkpoint(state, filename='checkpoint.pth.tar'):
@@ -42,7 +42,7 @@ class Reinforce(object):
         self.optim = torch.optim.Adam(self.agent.fc.parameters(), lr=1e-4)
         self.agent.train()
 
-    def train(self, env, epoch, gamma=0.99, logging=False):
+    def train(self, env, epoch, gamma=1.00, logging=False):
         states, actions, rewards, q_values = self.generate_episode(env)
 
         horizon = len(states)
@@ -79,8 +79,13 @@ class Reinforce(object):
             q_value = self.agent(state_var)
             q_value = q_value.view(-1)
             q_value_numpy = q_value.data.cpu().numpy()
+
+            exploration = np.ones(11) / 11
+            alpha = 0.1
+
+            prob = q_value_numpy*(1-alpha) + alpha * exploration
             if is_training:
-                action = np.random.choice(11, 1, p=q_value_numpy)[0]
+                action = np.random.choice(11, 1, p=prob / prob.sum())[0]
             else:
                 action = torch.argmax(q_value)
 
@@ -98,8 +103,8 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--max_epochs', type=int, default=5000)
     parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--gamma', type=float, default=0.99)
-    parser.add_argument('--save_freq', type=int, default=10000)
+    parser.add_argument('--gamma', type=float, default=0.9)
+    parser.add_argument('--save_freq', type=int, default=5000)
     parser.add_argument('--data', type=str, default='../vot2016/ball1/')
     parser.add_argument('--num_train', type=int, default=50, help='number of frames used for training in one video')
     parser.add_argument('--resume', type=str, default='',  help='path to checkpoint (default: none)')

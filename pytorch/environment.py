@@ -102,13 +102,15 @@ class Env(object):
 
     def is_valid(self, bbox):
         # check out of range error
-        if bbox[0]>=bbox[2] or bbox[1]>=bbox[3]:
+        if bbox[0] >= bbox[2] or bbox[1] >= bbox[3]:
             return False
         if min(bbox) < 0:
             return False
         if max([bbox[0], bbox[2]]) >= self.cur_img.size[0]:
             return False
         if max([bbox[1], bbox[3]]) >= self.cur_img.size[1]:
+            return False
+        if max(abs(bbox - self.gt_bboxes[self.cur_idx])) > 30:
             return False
         return True
 
@@ -129,12 +131,12 @@ class Env(object):
         step_size = 0.03 * np.array([w,h,w,h])
 
         # compute new bbox
-        new_bbox = self.state + warp[action] * step_size
+        new_bbox = self.state + warp[action] * 1
 
         # check if the new bbox is valid
         if not self.is_valid(new_bbox):
             # return current bbox and Termination
-            return self.cur_img.crop(self.state), True, -100
+            return self.cur_img.crop(self.state), True, -1
 
         # if valid
         self.state = new_bbox
@@ -147,13 +149,13 @@ class Env(object):
             is_t = False
 
         # computing reward
-        reward = -1
+        reward = 0
         if is_t:
             iou = calculate_iou(self.state, self.gt_bboxes[self.cur_idx])
             if iou > 0.7:
                 reward = 100
             else:
-                reward = -30
+                reward = -1
 
         return ns, is_t, reward
 
