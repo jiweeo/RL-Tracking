@@ -1,5 +1,7 @@
 import os
 import numpy as np
+from torchvision.transforms import transforms
+from PIL import Image
 
 
 class AverageMeter(object):
@@ -43,7 +45,60 @@ def calculate_iou(boxA, boxB):
     # return the intersection over union value
     return iou
 
-def gen_gaussian_noise(bbox, alpha=0.18):
+
+def cropping(img ,bbox):
+    '''
+        A costumized cropping function
+        return a slightly larger bounding box
+    :return:
+    '''
+    beta = 0.15
+    dx = (bbox[2] - bbox[0]) * beta
+    dy = (bbox[3] - bbox[1]) * beta
+
+    large_bbox = bbox + np.array([-dx, -dy, dx, dy])
+
+    return img.crop(large_bbox)
+
+
+def get_transform():
+    transform = transforms.Compose([
+        transforms.Resize((114, 114)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    return transform
+
+
+def load_data(root_dir):
+    '''
+    :return:
+        imglist list([h*w*3])
+        gt_bbox nparray [n*4] (x,y,delta_x, delta_y)
+    '''
+
+    gt_bbox = np.genfromtxt(os.path.join(root_dir, 'groundtruth.txt'), delimiter=',')
+    x = gt_bbox[:, [0, 2, 4, 6]]
+    y = gt_bbox[:, [1, 3, 5, 7]]
+    x_min = np.min(x, 1)
+    x_max = np.max(x, 1)
+    y_min = np.min(y, 1)
+    y_max = np.max(y, 1)
+    gt_bbox = np.column_stack((x_min, y_min, x_max, y_max))
+
+    num_frame = len(gt_bbox)
+
+    imglist = []
+    for index in range(1, num_frame + 1):
+        imgpath = os.path.join(root_dir, str(index).zfill(8) + '.jpg')
+        img = Image.open(imgpath)
+        imglist.append(img)
+
+    return imglist, gt_bbox
+
+
+def gen_gaussian_noise(bbox, alpha=0.5):
+
     '''
     :param bbox: (4,) nparry
     :return: bbox with gausian noise
@@ -51,10 +106,13 @@ def gen_gaussian_noise(bbox, alpha=0.18):
 
     length = min([bbox[3]-bbox[1], bbox[2]-bbox[0]])
     std = length * alpha
-    dx, dy, dxx, dyy = np.random.normal(0, std, size=4)
-    noisy_bbox = bbox + np.array([dx, dy, dxx, dyy])
+    dx, dy = np.random.normal(0, std, size=2)
+    scale = np.random.normal(0, std*0.3)
+    noisy_bbox = bbox + np.array([dx, dy, dx, dy])
+    noisy_bbox += np.array([scale, scale, -scale, -scale])
 
     return noisy_bbox
+
 
 def gen_label(root_dir):
     '''

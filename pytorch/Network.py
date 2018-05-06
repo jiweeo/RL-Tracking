@@ -123,7 +123,10 @@ class Tracknet(nn.Module):
     def __init__(self):
         super().__init__()
         self.features = resnet18(pretrained=True)
-        self.fc6 = nn.Linear(8192, 512)
+        self.fc6 = nn.Sequential(
+            nn.Linear(8192, 512),
+            nn.ReLU()
+        )
         self.fc_a = nn.Linear(512, 11)
         self.fc_o = nn.Linear(512, 2)
 

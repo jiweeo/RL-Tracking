@@ -1,6 +1,7 @@
 import PIL.Image as Image
 import numpy as np
-from utils import calculate_iou, gen_gaussian_noise
+from utils import calculate_iou, gen_gaussian_noise, cropping
+import os
 
 warp = np.array(
     [
@@ -22,55 +23,27 @@ warp = np.array(
 class Env(object):
 
     def __init__(self, args):
-        self.root_dir = args.data
-        self.num_train = args.num_train                     # number of frames used for training
-        self.imglist, self.gt_bboxes= self.load_data()
-        self.cur_idx = 0
-        self.cur_img = None
+        self.img = None
         self.state = np.zeros(4)
         self.step_count = 0
 
-    def load_data(self):
-        '''
-        :return:
-            imglist list([h*w*3])
-            gt_bbox nparray [n*4] (x,y,delta_x, delta_y)
-        '''
 
-        gt_bbox = np.genfromtxt(self.root_dir + 'groundtruth.txt', delimiter=',')
-        x = gt_bbox[:, [0, 2, 4, 6]]
-        y = gt_bbox[:, [1, 3, 5, 7]]
-        x_min = np.min(x, 1)
-        x_max = np.max(x, 1)
-        y_min = np.min(y, 1)
-        y_max = np.max(y, 1)
-        gt_bbox = np.column_stack((x_min, y_min, x_max, y_max))
-
-        num_frame = len(gt_bbox)
-
-        imglsit = []
-        for index in range(1, num_frame+1):
-            imgpath = self.root_dir+str(index).zfill(8)+'.jpg'
-            img = Image.open(imgpath)
-            imglsit.append(img)
-
-        return imglsit, gt_bbox
-
-
-    def reset(self):
-        self.cur_idx = np.random.randint(self.num_train)    #frame idx
-        self.cur_img = self.imglist[self.cur_idx]           #
-        gt_bbox = self.gt_bboxes[self.cur_idx]
+    def reset(self, img, gt_bbox, state=None):
+        self.img = img
+        self.gt_bbox = gt_bbox
         self.step_count = 0
 
-        while True:
-            # keep sample until a valid starting bbox
-            self.state = gen_gaussian_noise(gt_bbox)
-            if self.is_valid(self.state):
-                break
+        if state is None:
+            # then sample a state
+            while True:
+                # keep sample until a valid starting bbox
+                self.state = gen_gaussian_noise(gt_bbox)
+                if self.is_valid(self.state):
+                    break
+        else:
+            self.state = state
 
-        return self.cur_img.crop(self.state)
-
+        return cropping(img, self.state)
 
     def is_valid(self, bbox):
         # check out of range error
@@ -78,14 +51,11 @@ class Env(object):
             return False
         if min(bbox) < 0:
             return False
-        if max([bbox[0], bbox[2]]) >= self.cur_img.size[0]:
+        if max([bbox[0], bbox[2]]) >= self.img.size[0]:
             return False
-        if max([bbox[1], bbox[3]]) >= self.cur_img.size[1]:
-            return False
-        if max(abs(bbox - self.gt_bboxes[self.cur_idx])) > 30:
+        if max([bbox[1], bbox[3]]) >= self.img.size[1]:
             return False
         return True
-
 
     def step(self, action):
 
@@ -107,13 +77,13 @@ class Env(object):
         # check if the new bbox is valid
         if not self.is_valid(new_bbox):
             # return current bbox and Termination
-            return self.cur_img.crop(self.state), True, -1
+            return cropping(self.img, self.state), True, -1
 
         # if valid
         self.state = new_bbox
         self.step_count += 1
-        ns = self.cur_img.crop(self.state)
-        if action == 10 or self.step_count == 300:
+        ns = cropping(self.img, self.state)
+        if action == 10 or self.step_count == 100:
             # if curruent action is termination or the episode is long enough
             is_t = True
         else:
@@ -122,7 +92,7 @@ class Env(object):
         # computing reward
         reward = 0
         if is_t:
-            iou = calculate_iou(self.state, self.gt_bboxes[self.cur_idx])
+            iou = calculate_iou(self.state, self.gt_bbox)
             if iou > 0.7:
                 reward = 100
             else:
