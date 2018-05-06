@@ -12,11 +12,13 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES']='3'
 
 
-def save_checkpoint(state, filename):
-    torch.save(state, filename)
+def save_checkpoint(state, dir):
+    if not os.path.exists(dir):
+        os.makedirs(dir)
+    torch.save(state, os.path.join(dir, 'latest.pth'))
 
 
 class Reinforce(object):
@@ -57,12 +59,14 @@ class Reinforce(object):
             loss = - loss/horizon
             self.optim.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_norm(self.agent.parameters(), max_norm=1)
             self.optim.step()
-
             if logging:
                 print('E: %d [%d/%d]\t loss: %.3f\t reward:%.3f \thorizon: %d' %(epoch, i, len(self.dataloader), loss, sum(rewards), horizon))
+            if i>500:
+                break
 
-    def generate_episode(self, env, img, gt_bbox, is_training=True):
+    def generate_episode(self, env, img, gt_bbox):
         states = []
         actions = []
         rewards = []
@@ -77,23 +81,25 @@ class Reinforce(object):
             q_value, stop = self.agent(patch_var)
             q_value = q_value.view(-1)
             stop = stop.view(-1)
-            q_value = F.softmax(q_value)
-            stop = F.softmax(stop)
+            q_value = F.softmax(q_value, dim=0)
+            stop = F.softmax(stop, dim=0)
+            stop_numpy = stop.data.cpu().numpy()
             q_value_numpy = q_value.data.cpu().numpy()
-            q_value_numpy[10] = stop[1]
 
             # fusion of exploit and explore
             alpha = 0
             exploration = np.ones(11) / 11
             prob = q_value_numpy*(1-alpha) + alpha * exploration
 
-
-            if is_training:
-                # sample
-                action = np.random.choice(11, 1, p=prob / prob.sum())[0]
+            action_o = np.random.choice(2, 1, p=stop_numpy)
+            if action_o == 1:
+                # stop
+                action = 10
+                q_values.append(stop[1])
             else:
-                # argmax
-                action = torch.argmax(q_value)
+                # not stopping, sample an action
+                action = np.random.choice(11, 1, p=prob / prob.sum())[0]
+                q_values.append(q_value[action])
 
             ns, is_t, reward = env.step(action)
             patch = ns
@@ -101,12 +107,6 @@ class Reinforce(object):
             actions.append(action)
             rewards.append(reward)
 
-            if action == 10:
-                # choose stop
-                q_values.append(stop[1])
-            else:
-                # choose move
-                q_values.append(q_value[action])
 
             if is_t:
                 break
@@ -119,8 +119,8 @@ def parse_arguments():
     parser.add_argument('--max_epochs', type=int, default=5000)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--gamma', type=float, default=0.9)
-    parser.add_argument('--save_freq', type=int, default=5000)
-    parser.add_argument('--data', type=str, default='../data/test/vot2017/girl')
+    parser.add_argument('--save_freq', type=int, default=1)
+    parser.add_argument('--data', type=str, default='../data/test/vot2017/ball1')
     parser.add_argument('--train_data', type=str, default='../data/train/')
     parser.add_argument('--test_data', type=str, default='../data/test/')
     parser.add_argument('--num_train', type=int, default=50, help='number of frames used for training in one video')
@@ -177,7 +177,7 @@ def main():
                 'epoch': epoch + 1,
                 'state_dict': R.agent.state_dict(),
                 'optimizer': R.optim.state_dict(),
-            }, filename='cv/%s/latest.pth' % args.name)
+            }, dir='cv/%s/' % args.name)
 
 
 if __name__ == '__main__':

@@ -22,7 +22,7 @@ warp = np.array(
 
 class Env(object):
 
-    def __init__(self, args):
+    def __init__(self, args=None):
         self.img = None
         self.state = np.zeros(4)
         self.step_count = 0

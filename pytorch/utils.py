@@ -2,7 +2,7 @@ import os
 import numpy as np
 from torchvision.transforms import transforms
 from PIL import Image
-
+import glob
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -92,6 +92,37 @@ def load_data(root_dir):
     for index in range(1, num_frame + 1):
         imgpath = os.path.join(root_dir, str(index).zfill(8) + '.jpg')
         img = Image.open(imgpath)
+        imglist.append(img)
+
+    return imglist, gt_bbox
+
+
+def load_otb_data(root_dir):
+    '''
+    :return:
+        imglist list([h*w*3])
+        gt_bbox nparray [n*4] (x,y,delta_x, delta_y)
+    '''
+
+    gt_bbox = np.genfromtxt(os.path.join(root_dir, 'groundtruth_rect.txt'), delimiter=',')
+    if len(gt_bbox.shape) == 1:
+        gt_bbox = np.genfromtxt(os.path.join(root_dir, 'groundtruth_rect.txt'))
+    x = gt_bbox[:, 0]
+    y = gt_bbox[:, 1]
+    xx = x + gt_bbox[:, 2]
+    yy = y + gt_bbox[:, 3]
+
+    gt_bbox = np.column_stack((x, y, xx, yy))
+
+    num_frame = len(gt_bbox)
+
+    img_path_list = glob.glob(os.path.join(root_dir, 'img', '*.jpg'))
+    img_path_list.sort()
+
+    imglist = []
+    for img_path in img_path_list:
+        img = Image.open(img_path)
+        img = img.convert('RGB')
         imglist.append(img)
 
     return imglist, gt_bbox
