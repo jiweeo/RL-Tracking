@@ -30,7 +30,7 @@ def calculate_iou(boxA, boxB):
     yB = min(boxA[3], boxB[3])
 
     # compute the area of intersection rectangle
-    interArea = (xB - xA + 1) * (yB - yA + 1)
+    interArea = max((xB - xA + 1), 0) * max((yB - yA + 1), 0)
 
     # compute the area of both the prediction and ground-truth
     # rectangles
@@ -43,7 +43,7 @@ def calculate_iou(boxA, boxB):
     iou = interArea / float(boxAArea + boxBArea - interArea)
 
     # return the intersection over union value
-    return iou
+    return max(0, iou)
 
 
 def cropping(img ,bbox):
